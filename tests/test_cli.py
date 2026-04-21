@@ -1,6 +1,13 @@
 import pytest
 
-from lms_extrafiliator.cli import _course_key, _course_keys, _resolve_course
+from lms_extrafiliator.cli import (
+    _academic_year_tokens,
+    _course_key,
+    _course_keys,
+    _filter_courses_by_academic_year,
+    _target_courses,
+    _resolve_course,
+)
 from lms_extrafiliator.errors import LMSExtractError
 from lms_extrafiliator.models import Course
 
@@ -168,3 +175,32 @@ def test_resolve_course_accepts_disambiguated_duplicate_key() -> None:
     )
 
     assert _resolve_course(client, "CMSC 127 Lab").id == "4049"
+
+
+def test_academic_year_tokens_support_short_and_long_forms() -> None:
+    assert _academic_year_tokens("25-26") == {"25-26", "2025-26", "2025-2026"}
+
+
+def test_filter_courses_by_academic_year_matches_short_year_in_long_course_name() -> None:
+    courses = [
+        Course(id="1", name="CMSC 126 - Second Semester 2024-2025", url="https://lms.test/course/view.php?id=1"),
+        Course(id="2", name="CMSC 127 - Second Semester 2025-2026", url="https://lms.test/course/view.php?id=2"),
+        Course(id="3", name="CMSC 128 - AY2025-26", url="https://lms.test/course/view.php?id=3"),
+    ]
+
+    filtered = _filter_courses_by_academic_year(courses, "25-26")
+
+    assert [course.id for course in filtered] == ["2", "3"]
+
+
+def test_target_courses_filters_all_by_academic_year() -> None:
+    client = FakeClient(
+        [
+            Course(id="1", name="CMSC 126 - Second Semester 2024-2025", url="https://lms.test/course/view.php?id=1"),
+            Course(id="2", name="CMSC 127 - Second Semester 2025-2026", url="https://lms.test/course/view.php?id=2"),
+        ]
+    )
+
+    courses = _target_courses(client, all_courses=True, course=None, academic_year="25-26")
+
+    assert [course.id for course in courses] == ["2"]

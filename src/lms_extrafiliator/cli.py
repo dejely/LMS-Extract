@@ -54,22 +54,24 @@ def topics(
 
 @app.command("dry-run")
 def dry_run(
+    academic_year: Optional[str] = typer.Argument(None, help='Optional academic year for --all, such as "25-26".'),
     all_courses: bool = typer.Option(False, "--all", help="Preview all discovered courses."),
     course: Optional[str] = typer.Option(None, "--course", help='Preview one Moodle course ID or key, such as "CMSC 126".'),
     topic: Optional[str] = typer.Option(None, "--topic", help="Limit to one topic name."),
 ) -> None:
     """Preview the files that would be downloaded."""
-    _run_download(all_courses=all_courses, course=course, topic=topic, dry=True)
+    _run_download(all_courses=all_courses, course=course, topic=topic, academic_year=academic_year, dry=True)
 
 
 @app.command()
 def download(
+    academic_year: Optional[str] = typer.Argument(None, help='Optional academic year for --all, such as "25-26".'),
     all_courses: bool = typer.Option(False, "--all", help="Download all discovered courses."),
     course: Optional[str] = typer.Option(None, "--course", help='Download one Moodle course ID or key, such as "CMSC 126".'),
     topic: Optional[str] = typer.Option(None, "--topic", help="Limit to one topic name."),
 ) -> None:
     """Download files into DOWNLOAD_DIR/course/topic folders."""
-    _run_download(all_courses=all_courses, course=course, topic=topic, dry=False)
+    _run_download(all_courses=all_courses, course=course, topic=topic, academic_year=academic_year, dry=False)
 
 
 @auth_app.command("browser")
@@ -84,17 +86,26 @@ def auth_browser() -> None:
         _fail(str(exc))
 
 
-def _run_download(*, all_courses: bool, course: str | None, topic: str | None, dry: bool) -> None:
+def _run_download(
+    *,
+    all_courses: bool,
+    course: str | None,
+    topic: str | None,
+    academic_year: str | None,
+    dry: bool,
+) -> None:
     if all_courses == bool(course):
         _fail('Choose exactly one target: --all or --course "COURSE KEY".')
     if topic and not course:
         _fail("--topic can only be used with --course.")
+    if academic_year and not all_courses:
+        _fail('Academic year filtering only works with --all, for example: download --all "25-26".')
 
     try:
         settings = load_config()
         with MoodleClient(settings) as client:
             client.authenticate()
-            target_courses = _target_courses(client, all_courses=all_courses, course=course)
+            target_courses = _target_courses(client, all_courses=all_courses, course=course, academic_year=academic_year)
             resources = _collect_resources(client, target_courses, topic)
             if not resources:
                 console.print("[yellow]No downloadable resources found.[/yellow]")
@@ -105,10 +116,62 @@ def _run_download(*, all_courses: bool, course: str | None, topic: str | None, d
         _fail(str(exc))
 
 
-def _target_courses(client: MoodleClient, *, all_courses: bool, course: str | None) -> list[Course]:
+def _target_courses(
+    client: MoodleClient,
+    *,
+    all_courses: bool,
+    course: str | None,
+    academic_year: str | None = None,
+) -> list[Course]:
     if course:
         return [_resolve_course(client, course)]
-    return client.discover_courses()
+    courses = client.discover_courses()
+    if academic_year:
+        courses = _filter_courses_by_academic_year(courses, academic_year)
+        if not courses:
+            raise LMSExtractError(f"No discovered courses matched academic year '{academic_year}'.")
+    return courses
+
+
+def _filter_courses_by_academic_year(courses: list[Course], academic_year: str) -> list[Course]:
+    tokens = _academic_year_tokens(academic_year)
+    return [
+        course
+        for course in courses
+        if any(token in _normalize_year_text(course.name) for token in tokens)
+    ]
+
+
+def _academic_year_tokens(academic_year: str) -> set[str]:
+    normalized = _normalize_year_text(academic_year)
+    numbers = [part for part in normalized.split("-") if part]
+    tokens = {normalized}
+
+    if len(numbers) >= 2:
+        start, end = numbers[0], numbers[1]
+        start_short = start[-2:]
+        end_short = end[-2:]
+        start_long = f"20{start_short}" if len(start) == 2 else start
+        end_long = f"20{end_short}" if len(end) == 2 else end
+        tokens.update(
+            {
+                f"{start_short}-{end_short}",
+                f"{start_long}-{end_short}",
+                f"{start_long}-{end_long}",
+            }
+        )
+
+    return tokens
+
+
+def _normalize_year_text(value: str) -> str:
+    chars: list[str] = []
+    for char in value.casefold():
+        if char.isdigit() or char == "-":
+            chars.append(char)
+        elif chars and chars[-1] != "-":
+            chars.append("-")
+    return "".join(chars).strip("-")
 
 
 def _resolve_course(client: MoodleClient, course_query: str) -> Course:

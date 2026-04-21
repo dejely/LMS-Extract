@@ -58,6 +58,7 @@ Preview downloads:
 ```bash
 uv run lms-extract dry-run --course "CMSC 126"
 uv run lms-extract dry-run --all
+uv run lms-extract dry-run --all "25-26"
 ```
 
 Download files:
@@ -66,7 +67,10 @@ Download files:
 uv run lms-extract download --course "CMSC 126"
 uv run lms-extract download --course "CMSC 126" --topic "Week 1"
 uv run lms-extract download --all
+uv run lms-extract download --all "25-26"
 ```
+
+When using `--all`, you can add an academic year filter such as `25-26`; it matches course names containing forms like `25-26`, `2025-26`, or `2025-2026`.
 
 Use `uv run lms-extract courses` to see each course key. The key is normally the Moodle course name up to, but excluding, the first `-`; for example, `CMSC 126 - Web Programming - Section 1` is selected with `--course "CMSC 126"`. If lecture and lab courses share the same base key, the lecture keeps the base key and the lab adds `Lab`, such as `CMSC 127` and `CMSC 127 Lab`. Compact keys like `cmsc126` also work. A bare course number like `126` works when it uniquely identifies one discovered course. Moodle numeric IDs still work as a fallback.
 
