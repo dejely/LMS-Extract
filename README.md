@@ -106,17 +106,6 @@ LMS_AUTH_MODE=http
 
 If normal login fails because of the site policy modal or account flow, use the browser fallback and then set `LMS_AUTH_MODE=browser`.
 
-## Releases
-
-GitHub Actions builds source archives for releases. Push a version tag to create a GitHub Release with `.zip` and `.tar.gz` files attached:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The release archive is built from tracked files only, so local `.env`, downloads, manifests, and caches are excluded.
-
 ## Notes
 
 - This tool only follows pages and downloads available to the authenticated account.
