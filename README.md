@@ -1,4 +1,4 @@
-# LMS Extrafiliator
+# LMS Extract
 
 `lms-extract` is a CLI tool for downloading files from Moodle-style Learning Management Systems using an authorized account.
 
